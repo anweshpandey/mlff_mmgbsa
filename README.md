@@ -8,6 +8,8 @@
 
 Compute protein-ligand binding free energies and per-residue energy decomposition using state-of-the-art Machine Learning Force Fields instead of traditional molecular mechanics force fields.
 
+![MLFF-MMGBSA Infographic](docs/assets/infographic.png)
+
 ---
 
 ## 🎯 Overview
@@ -304,6 +306,9 @@ sequenceDiagram
     Note over User,Output: All steps show Rich progress bars
 ```
 
+<details>
+<summary>🐍 Click to expand: Python API - Basic Usage</summary>
+
 ```python
 from mlff_mmgbsa import (
     load_mace_model,
@@ -354,7 +359,12 @@ for i, (res_id, res_name, chain) in enumerate(zip(
     print(f"{res_name}{res_id} ({chain}): {decomp.mean_contrib[i]:.2f} ± {decomp.std_contrib[i]:.2f} kcal/mol")
 ```
 
+</details>
+
 ### Advanced: Custom Processing
+
+<details>
+<summary>🔧 Click to expand: Python API - Advanced Custom Processing</summary>
 
 ```python
 from mlff_mmgbsa import load_mace_model
@@ -392,6 +402,8 @@ gb_result = compute_gb_solvation(coords, elements, charges, igb=8)
 print(f"Polar: {gb_result.polar_solvation:.2f}, Nonpolar: {gb_result.nonpolar_solvation:.2f}")
 print(f"Born radii: {gb_result.born_radii}")
 ```
+
+</details>
 
 ---
 
