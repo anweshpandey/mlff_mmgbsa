@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlff-mmgbsa"
+version = "0.1.0"
+description = "MMGBSA binding energy calculator using Machine Learning Force Fields (MACE)"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "mace-torch>=0.3.0",
+    "torch>=2.0",
+    "ase>=3.22",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "typer>=0.9",
+    "rich>=13.0",
+    "biotite>=0.39",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "ruff>=0.1.0", "mypy>=1.0", "pre-commit>=3.0"]
+gpu = ["mace-torch[cu121]"]
+
+[project.entry-points]
+console_scripts = { mlff-mmgbsa = "mlff_mmgbsa.cli:app" }
+
+[project.urls]
+Homepage = "https://github.com/yourusername/mlff_mmgbsa"
+Repository = "https://github.com/yourusername/mlff_mmgbsa"
+Issues = "https://github.com/yourusername/mlff_mmgbsa/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["mlff_mmgbsa*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "T20"]
+ignore = ["S101", "TRY003"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
