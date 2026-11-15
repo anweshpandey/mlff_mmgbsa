@@ -33,6 +33,41 @@ G = E_MLFF + G_GB + G_SA − T·S
 • T·S       : Entropy (optional, not computed by default)
 ```
 
+### Workflow
+
+```mermaid
+flowchart TD
+    A[📁 PDB Snapshots\nProtein-Ligand Complex] --> B[🔍 Snapshot Processor\nIdentify Ligand/Protein]
+    B --> C[✂️ Three-System Split]
+    C --> D1[Complex\nAll Atoms]
+    C --> D2[Protein Only\nLigand Stripped]
+    C --> D3[Ligand Only\nProtein Stripped]
+    
+    D1 --> E1[🧠 MACE Inference\nE_MLFF_complex]
+    D2 --> E2[🧠 MACE Inference\nE_MLFF_protein]
+    D3 --> E3[🧠 MACE Inference\nE_MLFF_ligand]
+    
+    D1 --> F1[🌊 GBOBC Solvation\nG_GB_complex + G_SA_complex]
+    D2 --> F2[🌊 GBOBC Solvation\nG_GB_protein + G_SA_protein]
+    D3 --> F3[🌊 GBOBC Solvation\nG_GB_ligand + G_SA_ligand]
+    
+    E1 & F1 --> G1[G_complex = E_MLFF + G_GB + G_SA]
+    E2 & F2 --> G2[G_protein = E_MLFF + G_GB + G_SA]
+    E3 & F3 --> G3[G_ligand = E_MLFF + G_GB + G_SA]
+    
+    G1 & G2 & G3 --> H[⚖️ ΔG_bind = G_complex - G_protein - G_ligand]
+    
+    H --> I[📊 Results\nPer-frame ΔG + Components]
+    H --> J[🔬 Decomposition\nPer-residue Contributions]
+    
+    style A fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style B fill:#e8eaf6,stroke:#283593,stroke-width:2px
+    style C fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style H fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style I fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style J fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+```
+
 ---
 
 ## ✨ Features
@@ -156,6 +191,33 @@ mlff-mmgbsa both -d ./snapshots -r LIG -o results
 
 ### CLI Commands
 
+```mermaid
+graph TD
+    Root[mlff-mmgbsa] --> Compute[compute\nBinding Energies]
+    Root --> Decompose[decompose\nPer-Residue]
+    Root --> Both[both\nCompute + Decompose]
+    Root --> Info[info\nModel/GB Reference]
+    
+    Compute --> C1[Required:\n-d/--snapshots-dir PATH\nOR -s/--snapshots FILES...]
+    Compute --> C2[Ligand ID:\n-r/--ligand-resname LIG\n-c/--ligand-chain L]
+    Compute --> C3[Model:\n-m/--model mace-mp-0\ndefault: mace-mp-0]
+    Compute --> C4[GB:\n--igb 8\ndefault: 8 (GB-Neck2)]
+    Compute --> C5[Device:\n--device cuda/cpu/mps\ndefault: auto]
+    Compute --> C6[Output:\n-o/--output results.csv\n-f/--format csv/json/excel]
+    
+    Decompose --> D1[Method:\n--method interaction|alanine_scan\ndefault: interaction]
+    Decompose --> D2[Parallel:\n-j/--n-jobs N\ndefault: 1]
+    Decompose --> D3[Display:\n--top-n 10\ndefault: 10]
+    
+    Both --> B1[Combines all\ncompute + decompose\noptions]
+    
+    style Root fill:#1e3a5f,color:#fff,stroke:#1565c0,stroke-width:3px
+    style Compute fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style Decompose fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Both fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style Info fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+```
+
 #### `mlff-mmgbsa compute`
 Compute MMGBSA binding free energies.
 
@@ -212,6 +274,35 @@ mlff-mmgbsa info
 ## 🐍 Python API
 
 ### Basic Usage
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Model as load_mace_model()
+    participant Processor as SnapshotProcessor
+    participant Energy as compute_mmgbsa_batch()
+    participant Decomp as compute_decomposition_batch()
+    participant Output as write_*()
+    
+    User->>Model: model = load_mace_model("mace-mp-0", device="cuda")
+    Model-->>User: MACEModel wrapper
+    
+    User->>Processor: processor = SnapshotProcessor(ligand_resname="LIG")
+    User->>Processor: batch = processor.process_directory("./snapshots")
+    Processor-->>User: SnapshotBatch (frames, atom counts)
+    
+    User->>Energy: result = compute_mmgbsa_batch(model, batch, igb=8)
+    Energy-->>User: MMGBSABatchResult (ΔG, components, stats)
+    
+    User->>Decomp: decomp = compute_decomposition_batch(model, batch.snapshots, igb=8, n_jobs=4)
+    Decomp-->>User: DecompositionResult (per-residue mean/std)
+    
+    User->>Output: write_mmgbsa_results(result, "results.csv")
+    User->>Output: write_decomposition_results(decomp, "decomp.csv")
+    Output-->>User: CSV/JSON/Excel files
+    
+    Note over User,Output: All steps show Rich progress bars
+```
 
 ```python
 from mlff_mmgbsa import (
@@ -306,6 +397,28 @@ print(f"Born radii: {gb_result.born_radii}")
 
 ## 🧪 MACE Models
 
+```mermaid
+flowchart TD
+    Start[🎯 Select MACE Model] --> Q1{System Type?}
+    
+    Q1 -->|Protein + Drug-like Ligand| MP0[mace-mp-0\nFoundation Model\n✅ General purpose\n✅ Proteins & metals\n✅ Robust]
+    Q1 -->|Pure Organic / Drug-like| OFF[mace-off / mace-off23\nOFF 2023 Model\n✅ SPICE/OpenFF trained\n✅ Drug-like accuracy\n✅ Fast]
+    Q1 -->|Maximum Accuracy Needed| OFF24[mace-off24\nOFF 2024 Large\n✅ Highest accuracy\n⚠️ 2-3× slower\n⚠️ More VRAM]
+    Q1 -->|Custom Fine-tuned| CUSTOM[Custom .model\nYour checkpoint\n✅ Specialized system\n✅ Domain adapted]
+    
+    MP0 --> Rec[Recommendation: Start Here]
+    OFF --> Rec
+    OFF24 --> Rec
+    CUSTOM --> Rec
+    
+    style Start fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style MP0 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style OFF fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style OFF24 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style CUSTOM fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style Rec fill:#e8eaf6,stroke:#283593,stroke-width:3px
+```
+
 | Model | Description | Training Data | Best For |
 |-------|-------------|---------------|----------|
 | `mace-mp-0` | Foundation model (MP-0) | Materials Project + diverse molecules | General purpose, proteins, metal centers |
@@ -322,6 +435,23 @@ Models are automatically downloaded from GitHub releases on first use.
 ---
 
 ## 🌊 GB Models (igb)
+
+```mermaid
+graph LR
+    subgraph GBOBC["GBOBC Variants (igb)"]
+        I2[igb=2\nOBC I\nα=0.8, β=0.0\nγ=2.91\n📄 Hawkins 1996]
+        I5[igb=5\nOBC II\nα=1.0, β=0.8\nγ=4.85\n📄 Onufriev 2000]
+        I7[igb=7\nGB-Neck\nα=1.0, β=0.8\nγ=4.85\nneck=0.73\n📄 Im 2003]
+        I8[igb=8★\nGB-Neck2\nα=1.0, β=0.8\nγ=4.85\nneck=0.73\n📄 Nguyen 2013]
+    end
+    
+    I2 --> I5 --> I7 --> I8
+    
+    I8 -.->|RECOMMENDED| Rec[Best for proteins\nBuried atom correction\nValidated on PDBbind]
+    
+    style I8 fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style Rec fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5
+```
 
 | igb | Model | Reference | Characteristics |
 |-----|-------|-----------|-----------------|
@@ -343,6 +473,37 @@ Models are automatically downloaded from GitHub releases on first use.
 ---
 
 ## 📊 Output Files
+
+```mermaid
+graph TD
+    Run[mlff-mmgbsa compute/decompose/both] --> MMGBSA[results_mmgbsa.csv\nMMGBSA Binding Energies]
+    Run --> Decomp[results_decomp.csv\nPer-Residue Summary]
+    Run --> DecompFrame[results_decomp_per_frame.csv\nPer-Frame Per-Residue Detail]
+    Run --> Summary[results_summary.txt\nStatistics Summary]
+    
+    MMGBSA --> C1[Frame Index]
+    MMGBSA --> C2[ΔG_bind (kcal/mol)]
+    MMGBSA --> C3[Complex/Protein/Ligand\nTotal Energies]
+    MMGBSA --> C4[MLFF Components\n(ΔE_MLFF, ΔGB_polar, ΔGB_nonpolar)]
+    MMGBSA --> C5[Mean ± Std Statistics]
+    
+    Decomp --> D1[Residue ID + Name + Chain]
+    Decomp --> D2[Mean ΔG Contribution]
+    Decomp --> D3[Std Across Frames]
+    
+    DecompFrame --> F1[Frame-by-frame\nResidue Contributions]
+    DecompFrame --> F2[MLFF / GB Polar / GB Nonpolar\nBreakdown per residue per frame]
+    
+    Summary --> S1[Number of Frames]
+    Summary --> S2[Mean ΔG_bind ± Std]
+    Summary --> S3[Component Breakdown\nMean ± Std]
+    
+    style Run fill:#1e3a5f,color:#fff,stroke:#1565c0,stroke-width:3px
+    style MMGBSA fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style Decomp fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style DecompFrame fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Summary fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+```
 
 ### MMGBSA Results (`results.csv`)
 
@@ -392,6 +553,33 @@ Models are automatically downloaded from GitHub releases on first use.
 ---
 
 ## ⚡ Performance
+
+```mermaid
+graph LR
+    subgraph Hardware["Hardware: NVIDIA A100"]
+        direction TB
+        GPU[GPU: MACE Inference]
+        CPU[CPU: GB Solvation]
+    end
+    
+    Frame[1 Frame\n50k atoms] --> GPU
+    Frame --> CPU
+    
+    GPU --> T1[50-200 ms\nMACE Forward Pass]
+    CPU --> T2[5-20 ms\nGBOBC Solvation]
+    
+    T1 & T2 --> Total[Total: 100-300 ms/frame]
+    
+    Total --> Decomp[Decomposition\n+2-5× overhead]
+    
+    Total --> Batch[Batch Processing\n100 frames ≈ 10-30 sec]
+    
+    style GPU fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style CPU fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Total fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style Decomp fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style Batch fill:#e8eaf6,stroke:#283593,stroke-width:2px
+```
 
 Typical performance on **NVIDIA A100** (50k atom protein-ligand complex):
 
